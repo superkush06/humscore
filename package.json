@@ -1,0 +1,7 @@
+{
+  "name": "protected-parent-directory",
+  "private": true,
+  "scripts": {
+    "preinstall": "echo 'ERROR: Do NOT run npm install in this parent directory. Run this in /web.' && exit 1"
+  }
+}
