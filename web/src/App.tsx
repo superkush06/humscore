@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Note } from './types/note'
+import Recorder from './components/Recorder'
 
 // Smoke test for the note format: POST to /transcribe and list what comes back.
 function App() {
@@ -29,6 +30,8 @@ function App() {
   return (
     <main className="mx-auto max-w-xl p-8">
       <h1 className="text-3xl font-bold">HumScore</h1>
+
+      <Recorder />
 
       <button
         onClick={transcribeTest}
