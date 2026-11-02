@@ -20,5 +20,7 @@ CLAUDE.local.md
 *.pt
 *.ckpt
 data/
+!model/data/
+!model/data/**
 checkpoints/
 mini_ds/
