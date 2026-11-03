@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import type { Note } from './types/note'
+import type { Note } from '../types/note'
+import SheetMusicDisplay from '../components/SheetMusicDisplay'
 
 // Smoke test for the note format: POST to /transcribe and list what comes back.
-function App() {
+export default function Home() {
   const [notes, setNotes] = useState<Note[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -27,8 +28,10 @@ function App() {
   }
 
   return (
-    <main className="mx-auto max-w-xl p-8">
-      <h1 className="text-3xl font-bold">HumScore</h1>
+    <main className="mx-auto max-w-5xl py-8 px-3">
+      <h1 className="text-3xl font-bold pb-4">HumScore</h1>
+
+      <SheetMusicDisplay xmlUrl="sample.xml" />
 
       <button
         onClick={transcribeTest}
@@ -51,4 +54,3 @@ function App() {
   )
 }
 
-export default App
