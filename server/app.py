@@ -1,5 +1,10 @@
-from fastapi import FastAPI
+import os
+import tempfile
+
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+
+from transcribe import notes_from_wav
 
 app = FastAPI()
 app.add_middleware(
@@ -11,10 +16,19 @@ app.add_middleware(
 
 
 @app.post("/transcribe")
-def transcribe():
-    # Fake notes in our note format: MIDI pitch, onset and offset in seconds
-    return [
-        {"pitch": 60, "onset": 0.0, "offset": 0.5},
-        {"pitch": 62, "onset": 0.5, "offset": 1.0},
-        {"pitch": 64, "onset": 1.0, "offset": 1.5},
-    ]
+def transcribe(audio: UploadFile):
+    # Plain def (not async) so FastAPI runs the slow Basic Pitch call in a worker thread
+    data = audio.file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty upload")
+
+    # Basic Pitch reads from a file path, so save the upload to a temp file first
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        f.write(data)
+        path = f.name
+    try:
+        return notes_from_wav(path)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not read the audio file")
+    finally:
+        os.remove(path)
