@@ -1,7 +1,13 @@
 import { useRef, useState } from 'react'
+import { toWav } from '../audio/toWav'
 
-// Record from the mic and play the recording back.
-function Recorder() {
+type Props = {
+  // Called with the finished recording as a WAV file.
+  onRecorded: (wav: Blob) => void
+}
+
+// Record from the mic, convert the recording to WAV, and play it back.
+function Recorder({ onRecorded }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const [recording, setRecording] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -13,22 +19,36 @@ function Recorder() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(`Could not use the mic: ${err instanceof Error ? err.message : String(err)}`)
       return
     }
+
+    // The mic's own sample rate. Some browsers (Firefox) don't report it; toWav handles that.
+    const micRate = stream.getAudioTracks()[0].getSettings().sampleRate
 
     const recorder = new MediaRecorder(stream)
     const chunks: Blob[] = []
     recorder.ondataavailable = (e) => chunks.push(e.data)
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: recorder.mimeType })
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop()) // turns the mic off
+      setRecording(false)
+
+      const recordedBlob = new Blob(chunks, { type: recorder.mimeType })
+      let wav: Blob
+      try {
+        wav = await toWav(recordedBlob, micRate)
+      } catch (err) {
+        setError(`Could not convert the recording: ${err instanceof Error ? err.message : String(err)}`)
+        return
+      }
+
+      // Play back the WAV itself, so what you hear is exactly what gets uploaded.
       // Free the previous recording before replacing it.
       setAudioUrl((oldUrl) => {
         if (oldUrl) URL.revokeObjectURL(oldUrl)
-        return URL.createObjectURL(blob)
+        return URL.createObjectURL(wav)
       })
-      stream.getTracks().forEach((t) => t.stop()) // turns the mic off
-      setRecording(false)
+      onRecorded(wav)
     }
 
     recorderRef.current = recorder
@@ -60,7 +80,7 @@ function Recorder() {
         </button>
       </div>
 
-      {error && <p className="mt-4 text-red-600">Could not use the mic: {error}</p>}
+      {error && <p className="mt-4 text-red-600">{error}</p>}
 
       {audioUrl && <audio controls src={audioUrl} className="mt-4 w-full" />}
     </section>
