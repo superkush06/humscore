@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Note } from '../types/note'
 import SheetMusicDisplay from '../components/SheetMusicDisplay'
+import Recorder from '../components/Recorder'
 
 // Smoke test for the note format: POST to /transcribe and list what comes back.
 export default function Home() {
@@ -32,6 +33,8 @@ export default function Home() {
       <h1 className="text-3xl font-bold pb-4">HumScore</h1>
 
       <SheetMusicDisplay xmlUrl="sample.xml" />
+
+      <Recorder />
 
       <button
         onClick={transcribeTest}
