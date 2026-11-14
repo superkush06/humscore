@@ -12,11 +12,12 @@
   "dependencies": {
     "@react-router/node": "^8.5.1",
     "@tailwindcss/vite": "^4.3.3",
+    "isbot": "^5",
     "opensheetmusicdisplay": "^2.2.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tailwindcss": "^4.3.3",
-    "isbot": "^5"
+    "react-router": "^8.5.1",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@react-router/dev": "^8.5.1",
