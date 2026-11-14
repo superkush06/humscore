@@ -27,7 +27,7 @@ The server's `/transcribe` endpoint returns a JSON list of notes:
 
 ## Frontend setup
 
-Requires Node 20.19+ or 22.12+.
+Requires Node 22.22+.
 
 ```bash
 cd web

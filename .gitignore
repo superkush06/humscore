@@ -2,7 +2,7 @@
 .DS_Store
 
 # Python
-__pycache__/
+**/__pycache__/
 .venv/
 
 # Secrets (keep the example file)
@@ -23,5 +23,4 @@ data/
 checkpoints/
 mini_ds/
 
-**/node_modules/
 web/.react-router/
