@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { toWav } from '../audio/toWav'
+import LiveWaveform from './LiveWaveform'
 
 type Props = {
   // Called with the finished recording as a WAV file.
@@ -11,6 +12,8 @@ function Recorder({ onRecorded }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const timerRef = useRef<number | undefined>(undefined)
   const [recording, setRecording] = useState(false)
+  // The recorder while it's running, so the live waveform can listen to the same mic
+  const [liveRecorder, setLiveRecorder] = useState<MediaRecorder | null>(null)
   const [seconds, setSeconds] = useState(0) // how long the current recording has been running
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -35,6 +38,7 @@ function Recorder({ onRecorded }: Props) {
       stream.getTracks().forEach((t) => t.stop()) // turns the mic off
       window.clearInterval(timerRef.current)
       setRecording(false)
+      setLiveRecorder(null)
 
       const recordedBlob = new Blob(chunks, { type: recorder.mimeType })
       let wav: Blob
@@ -57,6 +61,7 @@ function Recorder({ onRecorded }: Props) {
     recorderRef.current = recorder
     recorder.start()
     setRecording(true)
+    setLiveRecorder(recorder)
     setSeconds(0)
     timerRef.current = window.setInterval(() => setSeconds((s) => s + 1), 1000)
   }
@@ -67,33 +72,30 @@ function Recorder({ onRecorded }: Props) {
   }
 
   return (
-    <section>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={startRecording}
-          disabled={recording}
-          className="rounded bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50"
-        >
-          Record
-        </button>
-        <button
-          onClick={stopRecording}
-          disabled={!recording}
-          className="rounded bg-gray-700 px-4 py-2 font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-        >
-          Stop
-        </button>
-        {recording && (
-          <span className="ml-2 flex items-center gap-2 text-red-600">
-            <span className="h-3 w-3 animate-pulse rounded-full bg-red-600" />
+    <section className="flex flex-col items-center">
+      {/* One button: Record while idle, Stop while recording */}
+      <button
+        onClick={recording ? stopRecording : startRecording}
+        className={`flex items-center gap-3 rounded-full px-8 py-4 text-lg font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brass ${
+          recording ? 'bg-white text-midnight' : 'bg-signal text-white hover:brightness-110'
+        }`}
+      >
+        <span className={recording ? 'h-3.5 w-3.5 rounded-sm bg-signal' : 'h-3.5 w-3.5 rounded-full bg-white'} />
+        {recording ? 'Stop' : 'Record'}
+      </button>
+
+      {recording && liveRecorder && (
+        <div className="mt-6 flex w-full flex-col items-center gap-2">
+          <LiveWaveform stream={liveRecorder.stream} />
+          <p className="text-mist tabular-nums">
             Recording {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-          </span>
-        )}
-      </div>
+          </p>
+        </div>
+      )}
 
-      {error && <p className="mt-4 text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-red-300">{error}</p>}
 
-      {audioUrl && <audio controls src={audioUrl} className="mt-4 w-full" />}
+      {audioUrl && !recording && <audio controls src={audioUrl} className="mt-6 w-full max-w-md" />}
     </section>
   )
 }

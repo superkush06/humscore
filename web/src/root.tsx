@@ -25,11 +25,17 @@ export function Layout({
         />
         <title>HumScore</title>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&display=swap"
+          rel="stylesheet"
+        />
         <Meta />
         <Links />
       </head>
-      {/* Always a light page: the score is drawn in black, so it must not sit on a dark background */}
-      <body className="bg-stone-50 text-gray-900">
+      {/* The page is always dark, in light and dark mode. The score sits on its own white sheet. */}
+      <body className="bg-midnight font-sans text-white">
         {children}
         <ScrollRestoration />
         <Scripts />

@@ -10,15 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "@react-router/node": "^8.5.1",
     "@tailwindcss/vite": "^4.3.3",
+    "gsap": "^3.15.1",
     "isbot": "^5",
     "opensheetmusicdisplay": "^2.2.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.5.1",
     "tailwindcss": "^4.3.3",
-    "tone": "^15.1.22"
+    "tone": "^15.1.22",
+    "wavesurfer.js": "^8.1.0"
   },
   "devDependencies": {
     "@react-router/dev": "^8.5.1",

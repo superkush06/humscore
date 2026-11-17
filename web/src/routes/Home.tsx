@@ -5,6 +5,10 @@ import { playNotes } from '../audio/playNotes'
 import { EXAMPLE_NOTES } from '../exampleNotes'
 import SheetMusicDisplay from '../components/SheetMusicDisplay'
 import Recorder from '../components/Recorder'
+// Animations from React Bits (reactbits.dev), copied in unchanged
+import AnimatedContent from '../components/reactbits/AnimatedContent'
+import SplitText from '../components/reactbits/SplitText'
+import Waves from '../components/reactbits/Waves'
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
@@ -21,6 +25,7 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null) // message shown while waiting on the server
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
+  const [take, setTake] = useState(0) // counts hums, so the score sheet animates in once per hum
 
   // Run a server step, showing a message while it runs and the error if it fails.
   async function run(message: string, step: () => Promise<void>) {
@@ -48,6 +53,7 @@ export default function Home() {
   }
 
   function handleRecording(wav: Blob) {
+    setTake((t) => t + 1)
     run('Listening for notes…', async () => {
       const notes = await transcribe(wav)
       setDetected(notes)
@@ -61,6 +67,7 @@ export default function Home() {
   }
 
   function tryExample() {
+    setTake((t) => t + 1)
     setDetected(EXAMPLE_NOTES)
     run('Writing the score…', () => writeScore(EXAMPLE_NOTES))
   }
@@ -94,103 +101,118 @@ export default function Home() {
     })
   }
 
-  const button = 'rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50'
+  const button =
+    'rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm font-medium text-gray-900 hover:bg-gray-100 disabled:opacity-50'
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10">
-      <h1 className="font-serif text-5xl font-bold">HumScore</h1>
-      <p className="mt-2 text-lg text-gray-600">Hum a melody. Get sheet music.</p>
+    <>
+      {/* Moving lines behind the whole page */}
+      <div className="fixed inset-0 -z-10">
+        <Waves lineColor="#343a8c" backgroundColor="#14173a" rotation={90} spacing={22} amplitude={26} clickRipple={false} />
+      </div>
 
-      <section className="mt-8 rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">1. Hum</h2>
-        <p className="mt-1 mb-4 text-gray-600">
-          Press Record, hum a tune at a steady pace, then press Stop.
-        </p>
+      <main className="mx-auto max-w-4xl px-4 py-16 text-center">
+        <SplitText
+          text="HumScore"
+          tag="h1"
+          trigger="load"
+          className="font-display text-7xl leading-tight sm:text-9xl"
+        />
+        <p className="mt-2 font-display text-2xl text-mist sm:text-3xl">Hum a melody. Get sheet music.</p>
+        <p className="mt-8 mb-6 text-mist">Press Record, hum a tune at a steady pace, then press Stop.</p>
+
         <Recorder onRecorded={handleRecording} />
-        <button onClick={tryExample} disabled={busy !== null} className="mt-4 text-sm text-indigo-600 underline disabled:opacity-50">
+
+        <button
+          onClick={tryExample}
+          disabled={busy !== null}
+          className="mt-6 text-sm text-mist underline underline-offset-4 hover:text-white disabled:opacity-50"
+        >
           No mic? Try an example melody
         </button>
-      </section>
 
-      <section className="mt-6 rounded-lg border border-gray-200 bg-white p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">2. Your score</h2>
+        {busy && <p className="mt-10 text-lg text-brass">{busy}</p>}
 
-          {notation && scoreUrl && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button onClick={play} disabled={playing} className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-                {playing ? 'Playing…' : '▶ Play'}
-              </button>
-
-              <span className="flex items-center gap-1 text-sm">
-                <button onClick={() => changeTempo(notation.bpm - 4)} disabled={busy !== null} className={button} aria-label="Slower">
-                  −
-                </button>
-                <span className="w-20 text-center tabular-nums">{notation.bpm} BPM</span>
-                <button onClick={() => changeTempo(notation.bpm + 4)} disabled={busy !== null} className={button} aria-label="Faster">
-                  +
-                </button>
-              </span>
-
-              <a href={scoreUrl} download="humscore.musicxml" className={button}>
-                Download MusicXML
-              </a>
-              <button onClick={downloadMidi} disabled={busy !== null} className={button}>
-                Download MIDI
-              </button>
-            </div>
-          )}
-        </div>
-
-        {busy && <p className="mt-4 text-gray-600">{busy}</p>}
-
-        {error && <p className="mt-4 text-red-600">Something went wrong: {error}. Is the server running?</p>}
+        {error && <p className="mt-10 text-red-300">Something went wrong: {error}. Is the server running?</p>}
 
         {detected && detected.length === 0 && !busy && (
-          <p className="mt-4">No notes found. Try humming louder or closer to the mic.</p>
+          <p className="mt-10">No notes found. Try humming louder or closer to the mic.</p>
         )}
 
         {!detected && !busy && !error && (
-          <p className="mt-4 text-gray-500">Your sheet music will appear here.</p>
+          <p className="mt-10 rounded-lg border border-dashed border-white/25 px-6 py-14 text-mist">
+            Your sheet music will appear here.
+          </p>
         )}
 
         {scoreUrl && notation && (
-          <div className="mt-4">
-            <SheetMusicDisplay xmlUrl={scoreUrl} />
-          </div>
-        )}
-      </section>
+          // key={take}: a new hum is a new sheet, so it animates in again. A tempo change is not.
+          <AnimatedContent key={take} trigger="mount" distance={80} duration={0.9} className="mt-10">
+            <section className="rounded-md bg-white p-6 text-left text-gray-900 shadow-2xl shadow-black/50">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  onClick={play}
+                  disabled={playing}
+                  className="rounded-full bg-brass px-6 py-2 font-semibold text-midnight hover:brightness-105 disabled:opacity-60"
+                >
+                  {playing ? 'Playing…' : '▶ Play'}
+                </button>
 
-      {detected && detected.length > 0 && (
-        <details className="mt-6 rounded-lg border border-gray-200 bg-white p-6">
-          <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Detected notes ({detected.length})
-          </summary>
-          <p className="mt-3 text-sm text-gray-600">
-            What the server heard, before it was snapped to the beat. This list is the note format the whole app is built around.
-          </p>
-          <table className="mt-3 w-full font-mono text-sm">
-            <thead>
-              <tr className="text-left">
-                <th>Note</th>
-                <th>MIDI</th>
-                <th>Start (s)</th>
-                <th>End (s)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detected.map((note, i) => (
-                <tr key={i}>
-                  <td>{noteName(note.pitch)}</td>
-                  <td>{note.pitch}</td>
-                  <td>{note.onset.toFixed(2)}</td>
-                  <td>{note.offset.toFixed(2)}</td>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex items-center gap-1 text-sm">
+                    <button onClick={() => changeTempo(notation.bpm - 4)} disabled={busy !== null} className={button} aria-label="Slower">
+                      −
+                    </button>
+                    <span className="w-20 text-center tabular-nums">{notation.bpm} BPM</span>
+                    <button onClick={() => changeTempo(notation.bpm + 4)} disabled={busy !== null} className={button} aria-label="Faster">
+                      +
+                    </button>
+                  </span>
+                  <a href={scoreUrl} download="humscore.musicxml" className={button}>
+                    Download MusicXML
+                  </a>
+                  <button onClick={downloadMidi} disabled={busy !== null} className={button}>
+                    Download MIDI
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <SheetMusicDisplay xmlUrl={scoreUrl} />
+              </div>
+            </section>
+          </AnimatedContent>
+        )}
+
+        {detected && detected.length > 0 && (
+          <details className="mt-6 rounded-md border border-white/15 bg-white/5 p-6 text-left backdrop-blur-sm">
+            <summary className="cursor-pointer font-medium text-mist">Detected notes ({detected.length})</summary>
+            <p className="mt-3 text-sm text-mist">
+              What the server heard, before it was snapped to the beat. This list is the note format the whole app is built around.
+            </p>
+            <table className="mt-3 w-full text-sm tabular-nums">
+              <thead>
+                <tr className="text-left text-mist">
+                  <th className="font-medium">Note</th>
+                  <th className="font-medium">MIDI</th>
+                  <th className="font-medium">Start (s)</th>
+                  <th className="font-medium">End (s)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
-      )}
-    </main>
+              </thead>
+              <tbody>
+                {detected.map((note, i) => (
+                  <tr key={i}>
+                    <td>{noteName(note.pitch)}</td>
+                    <td>{note.pitch}</td>
+                    <td>{note.onset.toFixed(2)}</td>
+                    <td>{note.offset.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        )}
+      </main>
+    </>
   )
 }

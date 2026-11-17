@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* HumScore's colors and fonts. Use them as Tailwind classes: bg-midnight, text-mist, font-display... */
+@theme {
+  --color-midnight: #14173a; /* page background */
+  --color-mist: #c9ccf0; /* secondary text on the dark page */
+  --color-brass: #f5c451; /* main action (Play) and the live waveform */
+  --color-signal: #f0473e; /* Record */
+  --font-display: "Instrument Serif", serif;
+  --font-sans: "Instrument Sans", system-ui, sans-serif;
+}
