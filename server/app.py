@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from notate import build_score, pick_bpm, snapped_notes, to_midi, to_musicxml
-from transcribe import notes_from_wav
+from hum import notes_from_wav
 
 app = FastAPI()
 app.add_middleware(
@@ -19,12 +19,12 @@ app.add_middleware(
 
 @app.post("/transcribe")
 def transcribe(audio: UploadFile):
-    # Plain def (not async) so FastAPI runs the slow Basic Pitch call in a worker thread
+    # Plain def (not async) so FastAPI runs the slow pitch tracking in a worker thread
     data = audio.file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Empty upload")
 
-    # Basic Pitch reads from a file path, so save the upload to a temp file first
+    # The detector reads from a file path, so save the upload to a temp file first
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         f.write(data)
         path = f.name

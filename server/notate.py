@@ -13,17 +13,27 @@ GRID = 0.5
 
 
 def pick_bpm(notes):
-    """Guess the tempo: try 70 to 140 BPM and keep the one whose grid fits the note starts best."""
-    if len(notes) < 3:
+    """Guess the tempo from the gaps between note starts.
+
+    Tries 60 to 130 BPM and keeps the tempo where those gaps are closest to whole grid steps.
+    Gaps that would be an odd length (like 3 or 5 steps) count against a tempo a little, so
+    evenly hummed notes come out as plain notes rather than dotted ones.
+    """
+    notes = sorted(notes, key=lambda n: n["onset"])
+    gaps = [b["onset"] - a["onset"] for a, b in zip(notes, notes[1:])]
+    gaps = [g for g in gaps if g < 3.0]  # a long pause says nothing about the beat
+    if len(gaps) < 2:
         return 100
-    first = min(n["onset"] for n in notes)
-    starts = [n["onset"] - first for n in notes]
 
     best_bpm, best_error = 100, None
-    for bpm in range(70, 141, 2):
+    for bpm in range(60, 131):
         step = 60 / bpm * GRID  # seconds per grid step
-        # How far each note start is from its nearest grid line, as a fraction of a step
-        error = sum(abs(s / step - round(s / step)) for s in starts) / len(starts)
+        error = 0.0
+        for gap in gaps:
+            steps = max(1, round(gap / step))
+            error += abs(gap / step - steps) / steps  # how far this gap is from a whole number of steps
+            if steps not in (1, 2, 4, 8):
+                error += 0.05
         if best_error is None or error < best_error:
             best_bpm, best_error = bpm, error
     return best_bpm
@@ -33,31 +43,30 @@ def quantize(notes, bpm):
     """Snap notes to the grid and make them one voice.
 
     Returns a list of [start, length, pitch] with start and length counted in grid steps.
+
+    Each note is placed by its distance from the note before it, not from the start of the
+    recording. People speed up and slow down a little while humming; measured from the
+    start, that drift adds up and later notes land on the wrong beats.
     """
     notes = sorted(notes, key=lambda n: n["onset"])
-    first = notes[0]["onset"]  # drop the silence before the first note
     step = 60 / bpm * GRID  # seconds per grid step
 
-    # If two notes land on the same step, keep the longer one
-    by_start = {}
-    for n in notes:
-        start = round((n["onset"] - first) / step)
-        end = max(start + 1, round((n["offset"] - first) / step))  # at least one step long
-        length = end - start
-        if start not in by_start or length > by_start[start][0]:
-            by_start[start] = (length, n["pitch"])
-
     quantized = []
-    for start in sorted(by_start):
-        length, pitch = by_start[start]
+    start = 0
+    for i, n in enumerate(notes):
+        if i > 0:
+            gap = n["onset"] - notes[i - 1]["onset"]
+            start += max(1, round(gap / step))  # every note gets its own step
+        length = max(1, round((n["offset"] - n["onset"]) / step))
+
         if quantized:
             previous = quantized[-1]
-            gap = start - (previous[0] + previous[1])
+            space = start - (previous[0] + previous[1])
             # Overlap: the earlier note ends where this one begins.
-            # One-step gap: usually a breath, so hold the earlier note instead of writing a tiny rest.
-            if gap < 0 or gap == 1:
+            # A short space after a note at least as long is a breath, not a rest: hold the note through it.
+            if space < 0 or space == 1 or (space == 2 and previous[1] >= 2):
                 previous[1] = start - previous[0]
-        quantized.append([start, length, pitch])
+        quantized.append([start, length, n["pitch"]])
     return quantized
 
 

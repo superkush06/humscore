@@ -1,4 +1,8 @@
 fastapi[standard]
+# Detect step for humming (hum.py): pYIN pitch tracking
+librosa
+scipy
+# Detect step for instruments (transcribe.py, not used by the app right now)
 basic-pitch
 # basic-pitch needs an old resampy that imports pkg_resources, which setuptools 81+ removed
 setuptools<81

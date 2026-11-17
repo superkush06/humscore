@@ -40,9 +40,9 @@ export default function Home() {
     }
   }
 
-  // Notate step. Leave bpm out to let the server guess the tempo.
-  async function writeScore(notes: Note[], bpm?: number) {
-    const result = await notate(notes, bpm)
+  // Notate step. The server guesses the tempo from the timing of the notes.
+  async function writeScore(notes: Note[]) {
+    const result = await notate(notes)
     setNotation(result)
     // SheetMusicDisplay loads from a URL, so wrap the MusicXML text in one.
     // Free the previous score's URL before replacing it.
@@ -70,12 +70,6 @@ export default function Home() {
     setTake((t) => t + 1)
     setDetected(EXAMPLE_NOTES)
     run('Writing the score…', () => writeScore(EXAMPLE_NOTES))
-  }
-
-  // Redraw the same notes at a different tempo. No need to record again.
-  function changeTempo(bpm: number) {
-    if (!detected || bpm < 30 || bpm > 240) return
-    run('Writing the score…', () => writeScore(detected, bpm))
   }
 
   async function play() {
@@ -146,7 +140,7 @@ export default function Home() {
         )}
 
         {scoreUrl && notation && (
-          // key={take}: a new hum is a new sheet, so it animates in again. A tempo change is not.
+          // key={take}: a new hum is a new sheet, so it animates in again.
           <AnimatedContent key={take} trigger="mount" distance={80} duration={0.9} className="mt-10">
             <section className="rounded-md bg-white p-6 text-left text-gray-900 shadow-2xl shadow-black/50">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -159,15 +153,7 @@ export default function Home() {
                 </button>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="flex items-center gap-1 text-sm">
-                    <button onClick={() => changeTempo(notation.bpm - 4)} disabled={busy !== null} className={button} aria-label="Slower">
-                      −
-                    </button>
-                    <span className="w-20 text-center tabular-nums">{notation.bpm} BPM</span>
-                    <button onClick={() => changeTempo(notation.bpm + 4)} disabled={busy !== null} className={button} aria-label="Faster">
-                      +
-                    </button>
-                  </span>
+                  <span className="px-2 text-sm tabular-nums text-gray-600">{notation.bpm} BPM</span>
                   <a href={scoreUrl} download="humscore.musicxml" className={button}>
                     Download MusicXML
                   </a>
@@ -188,7 +174,7 @@ export default function Home() {
           <details className="mt-6 rounded-md border border-white/15 bg-white/5 p-6 text-left backdrop-blur-sm">
             <summary className="cursor-pointer font-medium text-mist">Detected notes ({detected.length})</summary>
             <p className="mt-3 text-sm text-mist">
-              What the server heard, before it was snapped to the beat. This list is the note format the whole app is built around.
+              What the server heard, before the notes were snapped to the beat. This list is the note format the whole app is built around.
             </p>
             <table className="mt-3 w-full text-sm tabular-nums">
               <thead>
