@@ -24,3 +24,5 @@ checkpoints/
 mini_ds/
 
 web/.react-router/
+# Recorded hums for the demo page: audio, kept on your own machine only
+web/public/samples/

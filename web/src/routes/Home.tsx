@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Note } from '../types/note'
 import { notate, notateMidi, transcribe, type Notation } from '../api'
 import { playNotes } from '../audio/playNotes'
@@ -27,6 +27,17 @@ export default function Home() {
   const [playing, setPlaying] = useState(false)
   const [tempoText, setTempoText] = useState('') // what is typed in the tempo box
   const [take, setTake] = useState(0) // counts hums, so the score sheet animates in once per hum
+  const [samples, setSamples] = useState<string[]>([]) // recorded hums in web/public/samples, if there are any
+  const samplePlayer = useRef<HTMLAudioElement | null>(null)
+
+  // Recorded hums are audio, so they are never in the repo. If this machine has some in
+  // web/public/samples (with an index.json listing the file names), offer them; if not, show nothing.
+  useEffect(() => {
+    fetch('/samples/index.json')
+      .then((response) => response.json())
+      .then((names) => setSamples(names))
+      .catch(() => setSamples([]))
+  }, [])
 
   // Run a server step, showing a message while it runs and the error if it fails.
   async function run(message: string, step: () => Promise<void>) {
@@ -66,6 +77,15 @@ export default function Home() {
       setBusy('Writing the score…')
       await writeScore(notes)
     })
+  }
+
+  // Play a recorded hum out loud and send the same audio through the app, exactly like a new recording.
+  async function trySample(name: string) {
+    samplePlayer.current?.pause()
+    const wav = await (await fetch(`/samples/${name}`)).blob()
+    samplePlayer.current = new Audio(URL.createObjectURL(wav))
+    samplePlayer.current.play()
+    handleRecording(wav)
   }
 
   function tryExample() {
@@ -142,6 +162,23 @@ export default function Home() {
         >
           No mic? Try an example melody
         </button>
+
+        {samples.length > 0 && (
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-mist">
+            Or hear a recorded hum
+            {samples.map((name, i) => (
+              <button
+                key={name}
+                onClick={() => trySample(name)}
+                disabled={busy !== null}
+                aria-label={`Recorded hum ${i + 1}`}
+                className="h-8 w-8 rounded-full border border-white/30 tabular-nums hover:border-brass hover:text-brass disabled:opacity-50"
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
 
         {busy && <p className="mt-10 text-lg text-brass">{busy}</p>}
 
