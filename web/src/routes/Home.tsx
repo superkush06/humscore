@@ -28,7 +28,8 @@ export default function Home() {
   const [tempoText, setTempoText] = useState('') // what is typed in the tempo box
   const [take, setTake] = useState(0) // counts hums, so the score sheet animates in once per hum
   const [samples, setSamples] = useState<string[]>([]) // recorded hums in web/public/samples, if there are any
-  const samplePlayer = useRef<HTMLAudioElement | null>(null)
+  const [sampleUrl, setSampleUrl] = useState<string | null>(null) // the recorded hum now in the player
+  const sampleEnded = useRef<() => void>(() => {}) // called by the player when that hum finishes
 
   // Recorded hums are audio, so they are never in the repo. If this machine has some in
   // web/public/samples (with an index.json listing the file names), offer them; if not, show nothing.
@@ -65,10 +66,12 @@ export default function Home() {
     })
   }
 
-  function handleRecording(wav: Blob) {
+  // waitFor: something to finish before the score is shown (a recorded hum playing to its end).
+  function handleRecording(wav: Blob, waitFor?: Promise<void>) {
     setTake((t) => t + 1)
+    if (!waitFor) setSampleUrl(null) // a new mic recording takes the player back
     run('Listening for notes…', async () => {
-      const notes = await transcribe(wav)
+      const [notes] = await Promise.all([transcribe(wav), waitFor])
       setDetected(notes)
       if (notes.length === 0) {
         setNotation(null)
@@ -79,13 +82,20 @@ export default function Home() {
     })
   }
 
-  // Play a recorded hum out loud and send the same audio through the app, exactly like a new recording.
+  // Put a recorded hum in the player, play it, and send the same audio through the app exactly
+  // like a new recording. The score appears once the hum has played to the end.
   async function trySample(name: string) {
-    samplePlayer.current?.pause()
     const wav = await (await fetch(`/samples/${name}`)).blob()
-    samplePlayer.current = new Audio(URL.createObjectURL(wav))
-    samplePlayer.current.play()
-    handleRecording(wav)
+    setDetected(null) // clear the last score while this hum plays
+    setNotation(null)
+    setSampleUrl((oldUrl) => {
+      if (oldUrl) URL.revokeObjectURL(oldUrl)
+      return URL.createObjectURL(wav)
+    })
+    const played = new Promise<void>((resolve) => {
+      sampleEnded.current = resolve
+    })
+    handleRecording(wav, played)
   }
 
   function tryExample() {
@@ -153,7 +163,7 @@ export default function Home() {
         <p className="mt-2 font-display text-2xl text-mist sm:text-3xl">Hum a melody. Get sheet music.</p>
         <p className="mt-8 mb-6 text-mist">Press Record, hum a tune at a steady pace, then press Stop.</p>
 
-        <Recorder onRecorded={handleRecording} />
+        <Recorder onRecorded={(wav) => handleRecording(wav)} sampleUrl={sampleUrl} onSampleEnded={() => sampleEnded.current()} />
 
         <button
           onClick={tryExample}

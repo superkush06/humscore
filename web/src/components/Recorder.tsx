@@ -5,10 +5,14 @@ import LiveWaveform from './LiveWaveform'
 type Props = {
   // Called with the finished recording as a WAV file.
   onRecorded: (wav: Blob) => void
+  // A recorded hum to play in place of the mic recording (a link to the audio), if one was picked.
+  sampleUrl?: string | null
+  // Called when that recorded hum has played to the end.
+  onSampleEnded?: () => void
 }
 
 // Record from the mic, convert the recording to WAV, and play it back.
-function Recorder({ onRecorded }: Props) {
+function Recorder({ onRecorded, sampleUrl, onSampleEnded }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const timerRef = useRef<number | undefined>(undefined)
   const [recording, setRecording] = useState(false)
@@ -95,7 +99,12 @@ function Recorder({ onRecorded }: Props) {
 
       {error && <p className="mt-4 text-red-300">{error}</p>}
 
-      {audioUrl && !recording && <audio controls src={audioUrl} className="mt-6 w-full max-w-md" />}
+      {/* The player shows the recorded hum if one was picked (and plays it right away), otherwise your own recording */}
+      {sampleUrl && !recording ? (
+        <audio key={sampleUrl} controls autoPlay src={sampleUrl} onEnded={onSampleEnded} className="mt-6 w-full max-w-md" />
+      ) : (
+        audioUrl && !recording && <audio controls src={audioUrl} className="mt-6 w-full max-w-md" />
+      )}
     </section>
   )
 }
