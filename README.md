@@ -27,7 +27,7 @@ The server's `/transcribe` endpoint returns a JSON list of notes:
 
 ## Frontend setup
 
-Requires Node 20.19+ or 22.12+.
+Requires Node 22.22+.
 
 ```bash
 cd web
@@ -35,6 +35,28 @@ npm install
 cp .env.example .env   # then set VITE_API_URL
 npm run dev
 ```
+
+## Run the whole app locally
+
+You need two terminals. The first runs the server (Python 3.11):
+
+```bash
+cd server
+python3.11 -m venv .venv            # first time only
+.venv/bin/pip install -r requirements.txt   # first time only
+.venv/bin/uvicorn app:app --port 8000
+```
+
+The second runs the web app:
+
+```bash
+cd web
+npm install                                          # first time only
+echo "VITE_API_URL=http://localhost:8000" > .env     # first time only
+npm run dev
+```
+
+Open http://localhost:5173, press Record, hum, press Stop.
 
 ## Contributing
 

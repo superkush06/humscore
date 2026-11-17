@@ -1,15 +1,24 @@
 import { useRef, useState } from 'react'
 import { toWav } from '../audio/toWav'
+import LiveWaveform from './LiveWaveform'
 
 type Props = {
   // Called with the finished recording as a WAV file.
   onRecorded: (wav: Blob) => void
+  // A recorded hum to play in place of the mic recording (a link to the audio), if one was picked.
+  sampleUrl?: string | null
+  // Called when that recorded hum has played to the end.
+  onSampleEnded?: () => void
 }
 
 // Record from the mic, convert the recording to WAV, and play it back.
-function Recorder({ onRecorded }: Props) {
+function Recorder({ onRecorded, sampleUrl, onSampleEnded }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null)
+  const timerRef = useRef<number | undefined>(undefined)
   const [recording, setRecording] = useState(false)
+  // The recorder while it's running, so the live waveform can listen to the same mic
+  const [liveRecorder, setLiveRecorder] = useState<MediaRecorder | null>(null)
+  const [seconds, setSeconds] = useState(0) // how long the current recording has been running
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,7 +40,9 @@ function Recorder({ onRecorded }: Props) {
     recorder.ondataavailable = (e) => chunks.push(e.data)
     recorder.onstop = async () => {
       stream.getTracks().forEach((t) => t.stop()) // turns the mic off
+      window.clearInterval(timerRef.current)
       setRecording(false)
+      setLiveRecorder(null)
 
       const recordedBlob = new Blob(chunks, { type: recorder.mimeType })
       let wav: Blob
@@ -54,6 +65,9 @@ function Recorder({ onRecorded }: Props) {
     recorderRef.current = recorder
     recorder.start()
     setRecording(true)
+    setLiveRecorder(recorder)
+    setSeconds(0)
+    timerRef.current = window.setInterval(() => setSeconds((s) => s + 1), 1000)
   }
 
   function stopRecording() {
@@ -62,27 +76,35 @@ function Recorder({ onRecorded }: Props) {
   }
 
   return (
-    <section className="mt-6">
-      <div className="flex gap-2">
-        <button
-          onClick={startRecording}
-          disabled={recording}
-          className="rounded bg-red-600 px-4 py-2 text-white disabled:opacity-50"
-        >
-          {recording ? 'Recording…' : 'Record'}
-        </button>
-        <button
-          onClick={stopRecording}
-          disabled={!recording}
-          className="rounded bg-gray-700 px-4 py-2 text-white disabled:opacity-50"
-        >
-          Stop
-        </button>
-      </div>
+    <section className="flex flex-col items-center">
+      {/* One button: Record while idle, Stop while recording */}
+      <button
+        onClick={recording ? stopRecording : startRecording}
+        className={`flex items-center gap-3 rounded-full px-8 py-4 text-lg font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brass ${
+          recording ? 'bg-white text-midnight' : 'bg-signal text-white hover:brightness-110'
+        }`}
+      >
+        <span className={recording ? 'h-3.5 w-3.5 rounded-sm bg-signal' : 'h-3.5 w-3.5 rounded-full bg-white'} />
+        {recording ? 'Stop' : 'Record'}
+      </button>
 
-      {error && <p className="mt-4 text-red-600">{error}</p>}
+      {recording && liveRecorder && (
+        <div className="mt-6 flex w-full flex-col items-center gap-2">
+          <LiveWaveform stream={liveRecorder.stream} />
+          <p className="text-mist tabular-nums">
+            Recording {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+          </p>
+        </div>
+      )}
 
-      {audioUrl && <audio controls src={audioUrl} className="mt-4 w-full" />}
+      {error && <p className="mt-4 text-red-300">{error}</p>}
+
+      {/* The player shows the recorded hum if one was picked (and plays it right away), otherwise your own recording */}
+      {sampleUrl && !recording ? (
+        <audio key={sampleUrl} controls autoPlay src={sampleUrl} onEnded={onSampleEnded} className="mt-6 w-full max-w-md" />
+      ) : (
+        audioUrl && !recording && <audio controls src={audioUrl} className="mt-6 w-full max-w-md" />
+      )}
     </section>
   )
 }

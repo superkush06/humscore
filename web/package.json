@@ -4,18 +4,27 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "react-router dev",
+    "build": "react-router typegen && tsc -b && react-router build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "@react-router/node": "^8.5.1",
     "@tailwindcss/vite": "^4.3.3",
+    "gsap": "^3.15.1",
+    "isbot": "^5",
+    "opensheetmusicdisplay": "^2.2.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tailwindcss": "^4.3.3"
+    "react-router": "^8.5.1",
+    "tailwindcss": "^4.3.3",
+    "tone": "^15.1.22",
+    "wavesurfer.js": "^8.1.0"
   },
   "devDependencies": {
+    "@react-router/dev": "^8.5.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

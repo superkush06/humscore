@@ -2,7 +2,7 @@
 .DS_Store
 
 # Python
-__pycache__/
+**/__pycache__/
 .venv/
 
 # Secrets (keep the example file)
@@ -22,3 +22,7 @@ CLAUDE.local.md
 data/
 checkpoints/
 mini_ds/
+
+web/.react-router/
+# Recorded hums for the demo page: audio, kept on your own machine only
+web/public/samples/
