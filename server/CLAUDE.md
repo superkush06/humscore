@@ -25,6 +25,15 @@ Owners: Anna (the API on Modal), Valerie (the Notate step: rhythm, key, MusicXML
 - It resamples audio to 22,050 Hz (our model uses 44,100 Hz), which is why the browser never downsamples.
 - In spring it is swapped for our PyTorch model (`model/`). Both return the same note format.
 
+## Cleanup (`cleanup.py`)
+- `transcribe.py` cleans Basic Pitch events before rounding times and returning the note format. Amplitude is used internally and never added to the API response.
+- A scoop is at most 150 ms, within two semitones of the following note, and at most a third of its length. It is absorbed into that note, including multi-step approaches.
+- Same-pitch pieces touching, overlapping, or separated by at most 40 ms are rejoined. Longer breaks remain separate notes.
+- Overlapping octave ghosts (one or two octaves away) are dropped only when they are less than half as strong as a note at least as long that covers at least 80% of them.
+- An octave excursion at most 180 ms long is rejoined into a held note only when it touches the same pitch on both sides and each neighbor is at least three times longer. Sustained octave leaps remain intact.
+- These are timing/pitch/amplitude heuristics for one hummed voice. Fast ornaments and same-pitch re-attacks with no clear gap can be merged; quiet genuine octave excursions can resemble tracking errors. Thresholds still need validation on representative humming recordings.
+- Run the dependency-free regression tests from the repo root: `python -m unittest discover -s server -p 'test_*.py' -v`. They also check the Basic Pitch adapter with mocked model output; they do not measure transcription accuracy on audio.
+
 ## Notate step
 - Snap notes to a beat grid using the tempo, guess the key, add barlines, write MusicXML with music21.
 
