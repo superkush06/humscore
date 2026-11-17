@@ -7,39 +7,68 @@ First version for demo day. Input is our note format:
 from music21 import clef, key, metadata, meter, midi, note, stream, tempo
 from music21.musicxml.m21ToXml import GeneralObjectExporter
 
-# The smallest rhythm we write, in beats. 0.5 = eighth notes, 0.25 = sixteenth notes.
-# Smaller follows the humming more closely but makes a messier score.
+# The smallest rhythm we write, in beats. 0.5 = eighth notes.
 GRID = 0.5
+# Some hums have quicker notes that eighths can't show. Those are written in sixteenths instead,
+# but only when sixteenths fit the hum clearly better: they make a messier score.
+FINE_GRID = 0.25
+FINE_MARGIN = 0.04  # how much better sixteenths must fit (0 = always, 0.1 = almost never)
+ODD_LENGTH = 0.05  # counted against a tempo for each gap that is not a plain length
+
+
+def note_gaps(notes):
+    """Seconds from each note's start to the next note's start."""
+    notes = sorted(notes, key=lambda n: n["onset"])
+    gaps = [b["onset"] - a["onset"] for a, b in zip(notes, notes[1:])]
+    return [g for g in gaps if g < 3.0]  # a long pause says nothing about the beat
+
+
+def misfit(gaps, bpm, grid):
+    """How badly the gaps fit whole grid steps at this tempo (0 = perfectly).
+
+    Gaps that would be an odd length (like 3 or 5 eighths) count against it a little, so
+    evenly hummed notes come out as plain notes rather than dotted ones.
+    """
+    step = 60 / bpm * grid  # seconds per grid step
+    plain = [length / grid for length in (0.5, 1, 2, 4)]  # eighth, quarter, half, whole, in steps
+    error = 0.0
+    for gap in gaps:
+        steps = max(1, round(gap / step))
+        error += abs(gap / step - steps) / steps  # how far this gap is from a whole number of steps
+        if steps not in plain:
+            error += ODD_LENGTH
+    return error / len(gaps)
+
+
+def pick_grid(notes, bpm):
+    """Eighths or sixteenths for this hum at this tempo? Sixteenths only if they fit clearly better."""
+    gaps = note_gaps(notes)
+    if len(gaps) < 2:
+        return GRID
+    if misfit(gaps, bpm, FINE_GRID) + FINE_MARGIN < misfit(gaps, bpm, GRID):
+        return FINE_GRID
+    return GRID
 
 
 def pick_bpm(notes):
     """Guess the tempo from the gaps between note starts.
 
-    Tries 60 to 130 BPM and keeps the tempo where those gaps are closest to whole grid steps.
-    Gaps that would be an odd length (like 3 or 5 steps) count against a tempo a little, so
-    evenly hummed notes come out as plain notes rather than dotted ones.
+    Tries 60 to 130 BPM, in eighths and in sixteenths, and keeps the tempo where the gaps are
+    closest to whole grid steps. The sixteenth reading wins only if it fits clearly better.
     """
-    notes = sorted(notes, key=lambda n: n["onset"])
-    gaps = [b["onset"] - a["onset"] for a, b in zip(notes, notes[1:])]
-    gaps = [g for g in gaps if g < 3.0]  # a long pause says nothing about the beat
+    gaps = note_gaps(notes)
     if len(gaps) < 2:
         return 100
 
-    best_bpm, best_error = 100, None
-    for bpm in range(60, 131):
-        step = 60 / bpm * GRID  # seconds per grid step
-        error = 0.0
-        for gap in gaps:
-            steps = max(1, round(gap / step))
-            error += abs(gap / step - steps) / steps  # how far this gap is from a whole number of steps
-            if steps not in (1, 2, 4, 8):
-                error += 0.05
-        if best_error is None or error < best_error:
-            best_bpm, best_error = bpm, error
-    return best_bpm
+    tempos = range(60, 131)
+    best = min(tempos, key=lambda bpm: misfit(gaps, bpm, GRID))
+    best_fine = min(tempos, key=lambda bpm: misfit(gaps, bpm, FINE_GRID))
+    if misfit(gaps, best_fine, FINE_GRID) + FINE_MARGIN < misfit(gaps, best, GRID):
+        return best_fine
+    return best
 
 
-def quantize(notes, bpm):
+def quantize(notes, bpm, grid=GRID):
     """Snap notes to the grid and make them one voice.
 
     Returns a list of [start, length, pitch] with start and length counted in grid steps.
@@ -49,7 +78,7 @@ def quantize(notes, bpm):
     start, that drift adds up and later notes land on the wrong beats.
     """
     notes = sorted(notes, key=lambda n: n["onset"])
-    step = 60 / bpm * GRID  # seconds per grid step
+    step = 60 / bpm * grid  # seconds per grid step
 
     quantized = []
     start = 0
@@ -61,10 +90,11 @@ def quantize(notes, bpm):
 
         if quantized:
             previous = quantized[-1]
-            space = start - (previous[0] + previous[1])
+            space = (start - (previous[0] + previous[1])) * grid  # beats of silence before this note
+            held = previous[1] * grid  # beats the earlier note lasts
             # Overlap: the earlier note ends where this one begins.
             # A short space after a note at least as long is a breath, not a rest: hold the note through it.
-            if space < 0 or space == 1 or (space == 2 and previous[1] >= 2):
+            if space < 0 or 0 < space <= 0.5 or (space == 1 and held >= 1):
                 previous[1] = start - previous[0]
         quantized.append([start, length, n["pitch"]])
     return quantized
@@ -72,10 +102,11 @@ def quantize(notes, bpm):
 
 def snapped_notes(notes, bpm):
     """The notes as the score shows them, back in our note format, so playback matches the score."""
-    step = 60 / bpm * GRID
+    grid = pick_grid(notes, bpm)
+    step = 60 / bpm * grid
     return [
         {"pitch": pitch, "onset": round(start * step, 3), "offset": round((start + length) * step, 3)}
-        for start, length, pitch in quantize(notes, bpm)
+        for start, length, pitch in quantize(notes, bpm, grid)
     ]
 
 
@@ -84,12 +115,13 @@ def build_score(notes, bpm):
     if not notes:
         raise ValueError("No notes to notate")
 
+    grid = pick_grid(notes, bpm)
     part = stream.Part()
     position = 0  # where the next note or rest goes, in grid steps
-    for start, length, pitch in quantize(notes, bpm):
+    for start, length, pitch in quantize(notes, bpm, grid):
         if start > position:
-            part.append(note.Rest(quarterLength=(start - position) * GRID))
-        new_note = note.Note(pitch, quarterLength=length * GRID)
+            part.append(note.Rest(quarterLength=(start - position) * grid))
+        new_note = note.Note(pitch, quarterLength=length * grid)
         # A note made from a MIDI number is marked "natural" on white keys, which would print
         # a natural sign on nearly every note. Clear it; music21 adds back the ones really needed.
         if new_note.pitch.accidental is not None and new_note.pitch.accidental.alter == 0:
@@ -98,7 +130,7 @@ def build_score(notes, bpm):
         position = start + length
 
     # Finish the last bar with a rest so every bar has 4 beats
-    beats = position * GRID
+    beats = position * grid
     if beats % 4 != 0:
         part.append(note.Rest(quarterLength=4 - beats % 4))
 
