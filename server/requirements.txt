@@ -1,0 +1,4 @@
+fastapi[standard]
+basic-pitch
+# basic-pitch needs an old resampy that imports pkg_resources, which setuptools 81+ removed
+setuptools<81
