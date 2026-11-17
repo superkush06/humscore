@@ -17,11 +17,13 @@ Steps:
 import librosa
 import numpy as np
 from scipy.ndimage import median_filter
+from scipy.signal import butter, sosfiltfilt
 
 SAMPLE_RATE = 22050
 HOP = 256  # samples between pitch readings (about 12 ms)
 FRAME_SECONDS = HOP / SAMPLE_RATE
 LOWEST_HZ, HIGHEST_HZ = 65, 1047  # C2 to C6, wider than any human hum
+RUMBLE_HZ = 70  # sound below this is fan, desk and electrical rumble, never a voice: filtered out first
 
 # Tuned on HumTrans clips. Results change very little when these move, which is a good sign.
 BRIDGE_FRAMES = 2  # a gap in the voice this short is a glitch, not a break between notes
@@ -41,6 +43,13 @@ QUIET = 0.2  # a note this much quieter than the typical note is noise
 UNSURE = 0.1  # pitch tracker confidence (0 to 1) below this is "unsure"...
 UNSURE_QUIET = 0.5  # ...and an unsure note that is also this quiet is noise
 STRAY_SEMITONES = 15  # an unsure note this far from the middle of the melody is noise
+# A silent room still has hum in it. Measured on real laptop recordings: "notes" made of room
+# noise were 1.2 to 1.7 times louder than the room and had confidence near 0.01; real hummed
+# notes were at least 7 times louder with confidence of 0.4 or more.
+ROOM_LOUDNESS = 3.0  # a note less than this many times louder than the quietest moments...
+ROOM_UNSURE = 0.2  # ...with confidence below this is the room, not a voice
+BUMP_LOUDNESS = 10.0  # a desk bump or keystroke can be louder than the room...
+BUMP_UNSURE = 0.05  # ...but the tracker has almost no confidence in it
 SCALE_REACH = 1.0  # how far (semitones) a note may be moved to land on the scale
 MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11]
 
@@ -48,6 +57,7 @@ MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11]
 def notes_from_wav(path):
     """Read a WAV file and return the hummed notes in our note format, sorted by onset."""
     audio, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
+    audio = sosfiltfilt(butter(4, RUMBLE_HZ, "highpass", fs=SAMPLE_RATE, output="sos"), audio)
     hz, voiced, confidence = librosa.pyin(
         audio, fmin=LOWEST_HZ, fmax=HIGHEST_HZ, sr=SAMPLE_RATE, frame_length=2048, hop_length=HOP
     )
@@ -214,11 +224,23 @@ def absorb_slides_and_drop_blips(pieces, frame_seconds):
 
 def drop_noise(pieces, loudness, confidence):
     """Remove pieces that are a breath, a click or room noise rather than a hummed note."""
-    if len(pieces) < 3:
-        return pieces  # too few notes to know what "typical" is
-
     def average(values, p):
         return float(np.nanmean(values[p["start"] : p["end"]]))
+
+    # Compare each piece with the quietest moments of the recording (the room on its own).
+    if confidence is not None:
+        room = max(float(np.percentile(loudness, 5)), 1e-9)
+
+        def is_room_or_bump(p):
+            times_louder, sure = average(loudness, p) / room, average(confidence, p)
+            return (times_louder < ROOM_LOUDNESS and sure < ROOM_UNSURE) or (
+                times_louder < BUMP_LOUDNESS and sure < BUMP_UNSURE
+            )
+
+        pieces = [p for p in pieces if not is_room_or_bump(p)]
+
+    if len(pieces) < 3:
+        return pieces  # too few notes to know what "typical" is
 
     typical_loudness = np.median([average(loudness, p) for p in pieces])
     middle_pitch_of_melody = np.median([p["exact"] for p in pieces])

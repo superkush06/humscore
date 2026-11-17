@@ -26,7 +26,10 @@ Owners: Anna (the API on Modal), Valerie (the Notate step: rhythm, key, MusicXML
   - `hum.py`: 18% wrong on average.
   - CREPE (a neural pitch tracker) in place of pYIN: 18%. Not used: it needs PyTorch and is about 3 times slower.
 - Most of what is left is singers being off-key, not tracking mistakes.
+- Held-out check: 100 more HumTrans test clips that were never used for tuning gave 15.6% wrong (female singers 9%, male 22%), rhythm right 82%, tempo right 87 of 100.
+- Vocadito (40 solo singing recordings with hand-annotated notes): 70% of notes found within 100 ms and a semitone, where a second human annotator scores 81%. It misses very short ornament notes sung without a break. Singing with words is harder than humming and is not what this is tuned for.
 - Noise: the same clips with room noise, a click and a breath added before and after the humming gave 40 junk notes across 26 clips. `drop_noise` in `hum.py` removes very quiet notes, and notes the tracker is unsure about that are also quiet or far from the melody. After it: 0 junk notes, and 20% wrong on the noisy clips.
+- Real rooms: two laptop recordings of a quiet room (fan rumble and electrical hum, nobody humming) used to produce 17 and 29 junk notes. Sound below 70 Hz is now filtered out first, and a note barely louder than the quietest moments of the recording with low tracker confidence is dropped. Both recordings now give no notes. With that room noise mixed under the 40 clips: 19% wrong when the hum is 25 dB louder than the room, 22% at 12 dB, no junk notes.
 - The settings at the top of `hum.py` were tuned on those clips. Results barely move when they change.
 - About 1 to 2 seconds for a 10-second recording.
 
