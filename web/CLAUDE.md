@@ -11,7 +11,9 @@ Owners: Aadi (app structure, recording, integration), Ben (score view).
 - **API**: the server URL comes from `VITE_API_URL` in `web/.env` (copy `.env.example`). Call `${import.meta.env.VITE_API_URL}/transcribe`. `.env` is gitignored.
 - **Note format**: `src/types/note.ts`. `pitch` = MIDI number, `onset`/`offset` = seconds. Don't change it without the team agreeing.
 - **Score view**: OpenSheetMusicDisplay only renders scores. It is not an editor, and its audio player is only for its GitHub sponsors.
-- **Playback**: use Tone.js. Browsers block audio until a user click, so playback starts from a button whose handler calls `await Tone.start()`.
+- **Server calls**: all in `src/api.ts` (`transcribe`, `notate`, `notateMidi`). Add new calls there, not in components.
+- **Page flow** (`src/routes/Home.tsx`): record → `transcribe` → `notate` → `SheetMusicDisplay` shows the MusicXML (passed as a blob URL) → play or download.
+- **Playback**: use Tone.js. Browsers block audio until a user click, so playback starts from a button whose handler calls `await Tone.start()`. The helper is `src/audio/playNotes.ts`.
 
 ## Commands (run in `web/`)
 - `npm run dev`: dev server at http://localhost:5173

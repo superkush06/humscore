@@ -17,7 +17,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.5.1",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "tone": "^15.1.22"
   },
   "devDependencies": {
     "@react-router/dev": "^8.5.1",

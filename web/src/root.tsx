@@ -28,7 +28,8 @@ export function Layout({
         <Meta />
         <Links />
       </head>
-      <body>
+      {/* Always a light page: the score is drawn in black, so it must not sit on a dark background */}
+      <body className="bg-stone-50 text-gray-900">
         {children}
         <ScrollRestoration />
         <Scripts />
