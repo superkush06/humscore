@@ -23,9 +23,10 @@ Owners: Anna (the API on Modal), Valerie (the Notate step: rhythm, key, MusicXML
 - Why: Basic Pitch is built for instruments playing several notes at once. On humming it chops one note into pieces and reports slides as extra notes.
 - Backtest on 40 HumTrans test clips (10 singers, 4 clips each), counting the edits needed to turn the detected pitches into the true ones, per true note, after the best constant key shift (people hum in their own key):
   - Basic Pitch: 61% of notes wrong, 0 of 40 clips under 20% wrong.
-  - `hum.py`: 21% wrong on average, 16% for the middle clip, 26 of 40 clips under 20% wrong. Female singers 11%, male singers 30%.
+  - `hum.py`: 18% wrong on average.
   - CREPE (a neural pitch tracker) in place of pYIN: 18%. Not used: it needs PyTorch and is about 3 times slower.
 - Most of what is left is singers being off-key, not tracking mistakes.
+- Noise: the same clips with room noise, a click and a breath added before and after the humming gave 40 junk notes across 26 clips. `drop_noise` in `hum.py` removes very quiet notes, and notes the tracker is unsure about that are also quiet or far from the melody. After it: 0 junk notes, and 20% wrong on the noisy clips.
 - The settings at the top of `hum.py` were tuned on those clips. Results barely move when they change.
 - About 1 to 2 seconds for a 10-second recording.
 

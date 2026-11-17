@@ -36,6 +36,11 @@ SLIDE_SEMITONES = 2.5  # ...if it is within this distance of that neighbor
 EDGE_SLIDE_SECONDS = 0.4  # a piece at the start or end of a breath, shorter than this...
 EDGE_SLIDE_RATIO = 1.5  # ...and touching a neighbor at least this many times longer, is a slide
 MIN_SECONDS = 0.11  # anything still shorter than this is dropped
+# Breaths, clicks and room noise can look like very quiet, uncertain notes far from the melody.
+QUIET = 0.2  # a note this much quieter than the typical note is noise
+UNSURE = 0.1  # pitch tracker confidence (0 to 1) below this is "unsure"...
+UNSURE_QUIET = 0.5  # ...and an unsure note that is also this quiet is noise
+STRAY_SEMITONES = 15  # an unsure note this far from the middle of the melody is noise
 SCALE_REACH = 1.0  # how far (semitones) a note may be moved to land on the scale
 MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11]
 
@@ -43,20 +48,21 @@ MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11]
 def notes_from_wav(path):
     """Read a WAV file and return the hummed notes in our note format, sorted by onset."""
     audio, _ = librosa.load(path, sr=SAMPLE_RATE, mono=True)
-    hz, voiced, _ = librosa.pyin(
+    hz, voiced, confidence = librosa.pyin(
         audio, fmin=LOWEST_HZ, fmax=HIGHEST_HZ, sr=SAMPLE_RATE, frame_length=2048, hop_length=HOP
     )
     loudness = librosa.feature.rms(y=audio, frame_length=1024, hop_length=HOP)[0][: len(hz)]
-    notes = notes_from_track(librosa.hz_to_midi(hz), voiced, loudness, FRAME_SECONDS)
+    notes = notes_from_track(librosa.hz_to_midi(hz), voiced, loudness, FRAME_SECONDS, confidence)
     return [{"pitch": n["pitch"], "onset": n["onset"], "offset": n["offset"]} for n in notes]
 
 
-def notes_from_track(pitch, voiced, loudness, frame_seconds):
+def notes_from_track(pitch, voiced, loudness, frame_seconds, confidence=None):
     """Turn a pitch curve into notes.
 
     pitch: MIDI pitch per frame, with decimals (60.4 = a bit sharp of middle C). NaN where unknown.
     voiced: True for frames where the voice is sounding.
     loudness: loudness per frame.
+    confidence: how sure the pitch tracker is, 0 to 1 per frame (optional; used to drop noise).
     Returns a list of dicts with onset, offset (seconds), pitch (whole MIDI number) and
     exact (the pitch before rounding).
     """
@@ -77,6 +83,7 @@ def notes_from_track(pitch, voiced, loudness, frame_seconds):
             pieces.append({"start": start + a, "end": start + b, "exact": middle_pitch(smooth[a:b])})
 
     absorb_slides_and_drop_blips(pieces, frame_seconds)
+    pieces = drop_noise(pieces, loudness, confidence)
     if not pieces:
         return []
 
@@ -203,6 +210,28 @@ def absorb_slides_and_drop_blips(pieces, frame_seconds):
                 pieces.pop(i)
                 changed = True
                 break
+
+
+def drop_noise(pieces, loudness, confidence):
+    """Remove pieces that are a breath, a click or room noise rather than a hummed note."""
+    if len(pieces) < 3:
+        return pieces  # too few notes to know what "typical" is
+
+    def average(values, p):
+        return float(np.nanmean(values[p["start"] : p["end"]]))
+
+    typical_loudness = np.median([average(loudness, p) for p in pieces])
+    middle_pitch_of_melody = np.median([p["exact"] for p in pieces])
+
+    kept = []
+    for p in pieces:
+        how_loud = average(loudness, p) / typical_loudness
+        unsure = confidence is not None and average(confidence, p) < UNSURE
+        stray = abs(p["exact"] - middle_pitch_of_melody) > STRAY_SEMITONES
+        is_noise = how_loud < QUIET or (unsure and (how_loud < UNSURE_QUIET or stray))
+        if not is_noise:
+            kept.append(p)
+    return kept
 
 
 def remove_tuning_offset(pieces):

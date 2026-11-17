@@ -25,6 +25,7 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null) // message shown while waiting on the server
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
+  const [tempoText, setTempoText] = useState('') // what is typed in the tempo box
   const [take, setTake] = useState(0) // counts hums, so the score sheet animates in once per hum
 
   // Run a server step, showing a message while it runs and the error if it fails.
@@ -40,10 +41,11 @@ export default function Home() {
     }
   }
 
-  // Notate step. The server guesses the tempo from the timing of the notes.
-  async function writeScore(notes: Note[]) {
-    const result = await notate(notes)
+  // Notate step. Leave bpm out to let the server pick the tempo from the timing of the notes.
+  async function writeScore(notes: Note[], bpm?: number) {
+    const result = await notate(notes, bpm)
     setNotation(result)
+    setTempoText(String(result.bpm))
     // SheetMusicDisplay loads from a URL, so wrap the MusicXML text in one.
     // Free the previous score's URL before replacing it.
     setScoreUrl((oldUrl) => {
@@ -70,6 +72,22 @@ export default function Home() {
     setTake((t) => t + 1)
     setDetected(EXAMPLE_NOTES)
     run('Writing the score…', () => writeScore(EXAMPLE_NOTES))
+  }
+
+  // The tempo is picked after you sing. Typing a different one redraws the same hum at that tempo.
+  function applyTempo() {
+    const bpm = Math.round(Number(tempoText))
+    if (!detected || !notation || bpm === notation.bpm) return
+    if (!(bpm >= 30 && bpm <= 240)) {
+      setTempoText(String(notation.bpm)) // not a usable tempo: put the current one back
+      return
+    }
+    run('Writing the score…', () => writeScore(detected, bpm))
+  }
+
+  function autoTempo() {
+    if (!detected) return
+    run('Writing the score…', () => writeScore(detected))
   }
 
   async function play() {
@@ -153,7 +171,23 @@ export default function Home() {
                 </button>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 text-sm tabular-nums text-gray-600">{notation.bpm} BPM</span>
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    Tempo
+                    <input
+                      type="number"
+                      min={30}
+                      max={240}
+                      value={tempoText}
+                      onChange={(e) => setTempoText(e.target.value)}
+                      onBlur={applyTempo}
+                      onKeyDown={(e) => e.key === 'Enter' && applyTempo()}
+                      className="w-20 rounded-full border border-gray-300 px-3 py-1.5 text-center tabular-nums text-gray-900"
+                    />
+                    BPM
+                  </label>
+                  <button onClick={autoTempo} disabled={busy !== null} className={button}>
+                    Auto
+                  </button>
                   <a href={scoreUrl} download="humscore.musicxml" className={button}>
                     Download MusicXML
                   </a>
