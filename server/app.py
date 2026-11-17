@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from notate import build_score, pick_bpm, to_midi, to_musicxml
+from notate import build_score, pick_bpm, snapped_notes, to_midi, to_musicxml
 from transcribe import notes_from_wav
 
 app = FastAPI()
@@ -36,35 +36,47 @@ def transcribe(audio: UploadFile):
         os.remove(path)
 
 
+# Limits on what /notate accepts, so a bad request can't make the server build a giant score
+MAX_SECONDS = 600
+MAX_NOTES = 5000
+
+
 class Note(BaseModel):
-    pitch: int  # MIDI note number (60 = middle C)
-    onset: float  # seconds from the start of the recording
-    offset: float
+    pitch: int = Field(ge=0, le=127)  # MIDI note number (60 = middle C)
+    onset: float = Field(ge=0, le=MAX_SECONDS)  # seconds from the start of the recording
+    offset: float = Field(ge=0, le=MAX_SECONDS)
 
 
 class NotateRequest(BaseModel):
-    notes: list[Note]
+    notes: list[Note] = Field(max_length=MAX_NOTES)
     bpm: int | None = Field(default=None, ge=30, le=240)  # leave out to let the server guess
 
 
-def score_from(request: NotateRequest):
-    """Shared by both notate endpoints: returns (score, bpm)."""
+def notes_and_bpm(request: NotateRequest):
+    """Shared by both notate endpoints: the notes as plain dicts, and the tempo to use."""
     notes = [n.model_dump() for n in request.notes]
     if not notes:
         raise HTTPException(status_code=400, detail="No notes to notate")
-    bpm = request.bpm or pick_bpm(notes)
-    return build_score(notes, bpm), bpm
+    return notes, request.bpm or pick_bpm(notes)
 
 
 @app.post("/notate")
 def notate(request: NotateRequest):
-    """Notes in, sheet music out: returns MusicXML text and the tempo that was used."""
-    score, bpm = score_from(request)
-    return {"musicxml": to_musicxml(score), "bpm": bpm}
+    """Notes in, sheet music out.
+
+    Returns the MusicXML text, the tempo that was used, and the notes as the score
+    shows them (snapped to the beat, in our note format) for playback.
+    """
+    notes, bpm = notes_and_bpm(request)
+    return {
+        "musicxml": to_musicxml(build_score(notes, bpm)),
+        "bpm": bpm,
+        "notes": snapped_notes(notes, bpm),
+    }
 
 
 @app.post("/notate/midi")
 def notate_midi(request: NotateRequest):
     """Same input as /notate, returns a .mid file."""
-    score, _ = score_from(request)
-    return Response(content=to_midi(score), media_type="audio/midi")
+    notes, bpm = notes_and_bpm(request)
+    return Response(content=to_midi(build_score(notes, bpm)), media_type="audio/midi")

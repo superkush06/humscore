@@ -61,6 +61,15 @@ def quantize(notes, bpm):
     return quantized
 
 
+def snapped_notes(notes, bpm):
+    """The notes as the score shows them, back in our note format, so playback matches the score."""
+    step = 60 / bpm * GRID
+    return [
+        {"pitch": pitch, "onset": round(start * step, 3), "offset": round((start + length) * step, 3)}
+        for start, length, pitch in quantize(notes, bpm)
+    ]
+
+
 def build_score(notes, bpm):
     """Build a music21 score in 4/4 from notes in our note format."""
     if not notes:
@@ -71,8 +80,18 @@ def build_score(notes, bpm):
     for start, length, pitch in quantize(notes, bpm):
         if start > position:
             part.append(note.Rest(quarterLength=(start - position) * GRID))
-        part.append(note.Note(pitch, quarterLength=length * GRID))
+        new_note = note.Note(pitch, quarterLength=length * GRID)
+        # A note made from a MIDI number is marked "natural" on white keys, which would print
+        # a natural sign on nearly every note. Clear it; music21 adds back the ones really needed.
+        if new_note.pitch.accidental is not None and new_note.pitch.accidental.alter == 0:
+            new_note.pitch.accidental = None
+        part.append(new_note)
         position = start + length
+
+    # Finish the last bar with a rest so every bar has 4 beats
+    beats = position * GRID
+    if beats % 4 != 0:
+        part.append(note.Rest(quarterLength=4 - beats % 4))
 
     # Guess the key from the notes, and spell black keys as flats in flat keys (B-flat, not A-sharp)
     guessed_key = part.analyze("key")
@@ -87,7 +106,8 @@ def build_score(notes, bpm):
     part.insert(0, tempo.MetronomeMark(number=bpm))
 
     score = stream.Score()
-    score.insert(0, metadata.Metadata(title="Your hum"))
+    # movementName prints once as the title; composer replaces music21's default "Music21" credit
+    score.insert(0, metadata.Metadata(movementName="Your hum", composer="HumScore"))
     score.insert(0, part)
     return score
 
